@@ -5,11 +5,14 @@ on:
     branches:
       - qa1
 
+env:
+  ECR_REPOSITORY: my-python-app
+  IMAGE_TAG: qa1-${{ github.sha }}
+
 jobs:
-  deploy:
-    name: Deploy to QA1 EC2
+  build-and-push:
+    name: Build & Push to ECR
     runs-on: ubuntu-latest
-    environment: qa1
 
     steps:
       - name: Checkout code
@@ -22,31 +25,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Copy files to EC2
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "app.py,scripts/deploy.sh,scripts/healthcheck.sh,environments/qa1.env"
-          target: "/home/ec2-user/app"
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Deploy on EC2
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd /home/ec2-user/app
-            cp environments/qa1.env .env
-            chmod +x scripts/deploy.sh scripts/healthcheck.sh
-            bash scripts/deploy.sh
-
-      - name: Health Check
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: bash /home/ec2-user/app/scripts/healthcheck.sh
+      - name: Build, tag and push image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --build-arg APP_ENV=qa1 .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "Image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"

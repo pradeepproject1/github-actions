@@ -1,4 +1,9 @@
-# GitHub Actions - Python EC2 Deployment
+# GitHub Actions - Python Docker ECR Deployment
+
+## Flow
+```
+Push Code → GitHub Actions → Build Docker Image → Push to ECR
+```
 
 ## Workflow Overview
 | Branch | Environment | Approval |
@@ -10,7 +15,20 @@
 
 ---
 
-## One-Time GitHub Setup
+## One-Time AWS Setup
+
+### 1. Create ECR Repository
+```bash
+aws ecr create-repository --repository-name my-python-app --region us-east-1
+```
+
+### 2. IAM User Permissions
+Attach to your IAM user:
+- `AmazonEC2ContainerRegistryFullAccess`
+
+---
+
+## GitHub Setup
 
 ### 1. Create Branches
 ```bash
@@ -21,17 +39,15 @@ git checkout -b stage && git push origin stage
 ```
 
 ### 2. Add GitHub Secrets
-Go to: `GitHub Repo → Settings → Secrets and Variables → Actions`
+`GitHub Repo → Settings → Secrets and Variables → Actions`
 
-| Secret                | Value                          |
-|-----------------------|--------------------------------|
-| AWS_ACCESS_KEY_ID     | Your AWS access key            |
-| AWS_SECRET_ACCESS_KEY | Your AWS secret key            |
-| AWS_REGION            | us-east-1                      |
-| EC2_HOST              | Your EC2 public IP             |
-| EC2_SSH_KEY           | Contents of your .pem key file |
+| Secret                | Value               |
+|-----------------------|---------------------|
+| AWS_ACCESS_KEY_ID     | Your AWS access key |
+| AWS_SECRET_ACCESS_KEY | Your AWS secret key |
+| AWS_REGION            | us-east-1           |
 
-### 3. Setup Stage Approval
+### 3. Stage Approval Setup
 ```
 GitHub Repo → Settings → Environments → stage
 → Check "Required reviewers"
@@ -41,28 +57,8 @@ GitHub Repo → Settings → Environments → stage
 
 ---
 
-## EC2 One-Time Setup
-```bash
-# SSH into EC2 and run
-mkdir -p /home/ec2-user/app/scripts
-mkdir -p /home/ec2-user/app/environments
-```
-
----
-
 ## How to Deploy
-- Push to `dev`   → auto deploys to dev EC2
-- Push to `qa1`   → auto deploys to qa1 EC2
-- Push to `qa2`   → auto deploys to qa2 EC2
-- Push to `stage` → waits for your approval in GitHub Actions tab
-
----
-
-## CircleCI vs GitHub Actions Mapping
-| CircleCI          | GitHub Actions           |
-|-------------------|--------------------------|
-| context           | secrets                  |
-| approval job      | environment + reviewer   |
-| filters: branches | on: push: branches       |
-| orbs              | uses (marketplace)       |
-| executors         | runs-on                  |
+- Push to `dev`   → builds image tagged `dev-<sha>`, pushes to ECR
+- Push to `qa1`   → builds image tagged `qa1-<sha>`, pushes to ECR
+- Push to `qa2`   → builds image tagged `qa2-<sha>`, pushes to ECR
+- Push to `stage` → waits for approval → builds image tagged `stage-<sha>` → pushes to ECR
