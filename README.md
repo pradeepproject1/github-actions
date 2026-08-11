@@ -1,64 +1,79 @@
-# GitHub Actions - Python Docker ECR Deployment
+# GitHub Actions - CircleCI Migration (Python + Docker + ECR)
 
-## Flow
+## Migration: CircleCI → GitHub Actions
+
+| CircleCI File | GitHub Actions File |
+|---|---|
+| deploy.yaml | .github/workflows/deploy.yml |
+| qa.yaml | .github/workflows/qa.yml |
+| qa1.yaml | .github/workflows/qa1.yml |
+| stage.yaml | .github/workflows/stage.yml |
+| pre-prod.yaml | .github/workflows/pre-prod.yml |
+| prod.yaml | .github/workflows/prod.yml |
+
+---
+
+## Pipeline Flow
 ```
-Push Code → GitHub Actions → Build Docker Image → Push to ECR
+dev → qa → qa1 → stage → pre-prod → prod
+Auto  Auto  Auto   Auto    Approval  Approval
 ```
 
 ## Workflow Overview
-| Branch | Environment | Approval |
-|--------|-------------|----------|
-| dev    | dev         | Auto     |
-| qa1    | qa1         | Auto     |
-| qa2    | qa2         | Auto     |
-| stage  | stage       | Manual   |
+| Branch   | Environment | Approval | Image Tag |
+|----------|-------------|----------|-----------|
+| dev      | dev         | Auto     | dev-<sha> |
+| qa       | qa          | Auto     | qa-<sha> |
+| qa1      | qa1         | Auto     | qa1-<sha> |
+| stage    | stage       | Auto     | stage-<sha> |
+| pre-prod | pre-prod    | Manual   | pre-prod-<sha> |
+| prod     | prod        | Manual   | prod-<sha> |
 
 ---
 
-## One-Time AWS Setup
-
-### 1. Create ECR Repository
-```bash
-aws ecr create-repository --repository-name my-python-app --region us-east-1
-```
-
-### 2. IAM User Permissions
-Attach to your IAM user:
-- `AmazonEC2ContainerRegistryFullAccess`
-
----
-
-## GitHub Setup
+## One-Time GitHub Setup
 
 ### 1. Create Branches
 ```bash
 git checkout -b dev && git push origin dev
+git checkout -b qa && git push origin qa
 git checkout -b qa1 && git push origin qa1
-git checkout -b qa2 && git push origin qa2
 git checkout -b stage && git push origin stage
+git checkout -b pre-prod && git push origin pre-prod
+git checkout -b prod && git push origin prod
 ```
 
-### 2. Add GitHub Secrets
-`GitHub Repo → Settings → Secrets and Variables → Actions`
-
-| Secret                | Value               |
-|-----------------------|---------------------|
-| AWS_ACCESS_KEY_ID     | Your AWS access key |
-| AWS_SECRET_ACCESS_KEY | Your AWS secret key |
-| AWS_REGION            | us-east-1           |
-
-### 3. Stage Approval Setup
+### 2. Create Environments
 ```
-GitHub Repo → Settings → Environments → stage
+GitHub Repo → Settings → Environments → New environment
+Create: dev, qa, qa1, stage, pre-prod, prod
+
+For pre-prod and prod:
 → Check "Required reviewers"
 → Add your GitHub username
 → Save
 ```
 
+### 3. Add GitHub Secrets
+```
+GitHub Repo → Settings → Secrets and Variables → Actions
+
+AWS_ACCESS_KEY_ID     → Your AWS access key
+AWS_SECRET_ACCESS_KEY → Your AWS secret key
+AWS_REGION            → us-east-1
+```
+
 ---
 
 ## How to Deploy
-- Push to `dev`   → builds image tagged `dev-<sha>`, pushes to ECR
-- Push to `qa1`   → builds image tagged `qa1-<sha>`, pushes to ECR
-- Push to `qa2`   → builds image tagged `qa2-<sha>`, pushes to ECR
-- Push to `stage` → waits for approval → builds image tagged `stage-<sha>` → pushes to ECR
+```bash
+# Auto deployments
+git push origin dev
+git push origin qa
+git push origin qa1
+git push origin stage
+
+# Manual approval required
+git push origin pre-prod   # Go to Actions tab → Approve
+git push origin prod       # Go to Actions tab → Approve
+```
